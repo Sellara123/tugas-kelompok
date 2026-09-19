@@ -1056,6 +1056,122 @@ function init() {
 }
 
 init();
+
+/* =========================================================
+   SISTEM AUDIO — VIDEO LOOP + FADE VOLUME PER SLIDE
+   ========================================================= */
+
+const openingVideo   = document.getElementById("openingVideo");
+const presenterAudio = document.getElementById("presenterAudio");
+
+// Volume target video untuk setiap slide (index sesuai urutan SLIDES)
+// 0=Cover, 1=QR, 2=Member1, 3=Member2, 4=Member3, 5=Member4, 6=Closing
+const VIDEO_VOLUME_PER_SLIDE = [1.00, 0.60, 0.20, 0.20, 0.20, 0.20, 0.10];
+const AUDIO_VOLUME_PER_SLIDE = [0.00, 0.00, 1.00, 1.00, 1.00, 1.00, 1.00];
+
+// Durasi fade (ms)
+const FADE_DURATION = 1500;
+
+// State
+let videoUnmuted  = false;
+let presenterReady = false;
+
+/* --- Fade volume umum (video & audio) --- */
+function fadeVolume(mediaEl, targetVol, duration) {
+  if (!mediaEl) return;
+  const startVol = mediaEl.volume;
+  const startTime = performance.now();
+  const diff = targetVol - startVol;
+
+  // Hindari animasi bertumpuk
+  if (mediaEl._fadeRAF) cancelAnimationFrame(mediaEl._fadeRAF);
+
+  function step(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    // easing smoothstep
+    const eased = t * t * (3 - 2 * t);
+    mediaEl.volume = Math.max(0, Math.min(1, startVol + diff * eased));
+    if (t < 1) {
+      mediaEl._fadeRAF = requestAnimationFrame(step);
+    } else {
+      mediaEl._fadeRAF = null;
+    }
+  }
+  mediaEl._fadeRAF = requestAnimationFrame(step);
+}
+
+/* --- Terapkan volume berdasarkan slide aktif --- */
+function applyAudioForSlide(index) {
+  const vVol = VIDEO_VOLUME_PER_SLIDE[index];
+  const aVol = AUDIO_VOLUME_PER_SLIDE[index];
+
+  if (typeof vVol === "number" && openingVideo) {
+    fadeVolume(openingVideo, vVol, FADE_DURATION);
+  }
+  if (typeof aVol === "number" && presenterAudio) {
+    fadeVolume(presenterAudio, aVol, FADE_DURATION);
+
+    // Putar audio presenter hanya jika volumenya > 0 dan belum diputar
+    if (aVol > 0 && presenterAudio.paused && presenterReady) {
+      presenterAudio.play().catch(() => {});
+    }
+    // Jangan pernah pause — cukup volume 0 (sesuai permintaan)
+  }
+}
+
+/* --- Hook ke goToSlide tanpa mengubah fungsi asli --- */
+const _originalGoToSlide = goToSlide;
+goToSlide = function (index) {
+  _originalGoToSlide(index);
+  applyAudioForSlide(index);
+};
+
+/* --- Unmute video saat interaksi pertama user --- */
+function unlockVideoAudio() {
+  if (videoUnmuted) return;
+  videoUnmuted = true;
+  if (openingVideo) {
+    openingVideo.muted = false;
+    openingVideo.volume = 0; // mulai dari 0, fade ke target slide saat ini
+    openingVideo.play().catch(() => {});
+    fadeVolume(openingVideo, VIDEO_VOLUME_PER_SLIDE[currentIndex] ?? 1, 2000);
+  }
+  // Putar audio presenter jika sudah siap
+  if (presenterReady && presenterAudio && AUDIO_VOLUME_PER_SLIDE[currentIndex] > 0) {
+    presenterAudio.play().catch(() => {});
+  }
+  document.removeEventListener("click", unlockVideoAudio);
+  document.removeEventListener("touchstart", unlockVideoAudio);
+  document.removeEventListener("keydown", unlockVideoAudio);
+}
+document.addEventListener("click", unlockVideoAudio, { once: false });
+document.addEventListener("touchstart", unlockVideoAudio, { once: false });
+document.addEventListener("keydown", unlockVideoAudio, { once: false });
+
+/* --- Pastikan audio presenter siap --- */
+if (presenterAudio) {
+  presenterAudio.addEventListener("canplaythrough", () => {
+    presenterReady = true;
+  }, { once: true });
+  // fallback: tandai ready setelah 2 detik jika event tidak muncul
+  setTimeout(() => { presenterReady = true; }, 2000);
+}
+
+/* --- Jaga video tetap berjalan (jika tab kembali aktif) --- */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && openingVideo && openingVideo.paused) {
+    openingVideo.play().catch(() => {});
+  }
+  if (!document.hidden && presenterAudio &&
+      AUDIO_VOLUME_PER_SLIDE[currentIndex] > 0 && presenterAudio.paused) {
+    presenterAudio.play().catch(() => {});
+  }
+});
+
+/* --- Inisialisasi volume untuk slide awal --- */
+applyAudioForSlide(currentIndex);
+
 </script>
 </body>
 </html>
