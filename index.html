@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kelompok 7 — Pembagian Polinomial Horner</title>
+<style>
+  /* ============ RESET & BASE ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #0b1220;
+    --navy-2: #0f1a30;
+    --blue: #1e3a8a;
+    --blue-soft: #2b4a8b;
+    --accent: #4f7cff;
+    --accent-2: #7c5cff;
+    --text: #eaf0ff;
+    --muted: #9fb0d0;
+    --line: rgba(120, 150, 220, 0.18);
+    --card: rgba(20, 32, 58, 0.72);
+    --card-2: rgba(15, 24, 46, 0.85);
+    --ok: #3ddc97;
+    --warn: #ffb454;
+    --err: #ff6b6b;
+    --radius: 14px;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+    --font: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background:
+      radial-gradient(1200px 700px at 15% -10%, #142a55 0%, transparent 60%),
+      radial-gradient(1000px 600px at 110% 110%, #1a1740 0%, transparent 55%),
+      linear-gradient(160deg, var(--navy) 0%, var(--navy-2) 100%);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  /* ============ DECORATIVE BACKGROUND ============ */
+  .bg-grid {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(120,150,220,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120,150,220,.06) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: radial-gradient(circle at 50% 40%, #000 40%, transparent 90%);
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 40%, transparent 90%);
+  }
+  .bg-symbols {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    overflow: hidden;
+  }
+  .bg-symbols span {
+    position: absolute;
+    color: rgba(120,150,220,.08);
+    font-size: 42px;
+    font-weight: 700;
+    font-family: 'Cambria Math', Georgia, serif;
+    animation: floaty 18s ease-in-out infinite;
+  }
+  @keyframes floaty {
+    0%,100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-22px) rotate(6deg); }
+  }
+
+  /* ============ LAYOUT ============ */
+  #app {
+    position: relative;
+    z-index: 1;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .slide-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 14px 74px;
+  }
+  .slide {
+    display: none;
+    width: 100%;
+    max-width: 1080px;
+    animation: slideIn .45s ease both;
+  }
+  .slide.active { display: block; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 26px;
+  }
+
+  /* ============ COVER ============ */
+  .cover { text-align: center; padding: 40px 24px; }
+  .cover-icon {
+    width: 64px; height: 64px; margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--blue), var(--accent-2));
+    box-shadow: 0 8px 24px rgba(79,124,255,.35);
+    font-size: 30px;
+  }
+  .cover .tag {
+    display: inline-block;
+    font-size: 12px; letter-spacing: 3px;
+    color: var(--accent);
+    border: 1px solid rgba(79,124,255,.4);
+    padding: 4px 14px; border-radius: 999px;
+    margin-bottom: 14px; text-transform: uppercase;
+  }
+  .cover h1 {
+    font-size: clamp(1.4rem, 4.4vw, 2.6rem);
+    letter-spacing: 1px;
+    line-height: 1.15;
+    background: linear-gradient(90deg, #ffffff, #b9c9f5);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .cover .sub { color: var(--muted); margin-top: 8px; font-size: .95rem; }
+  .cover .meta {
+    margin-top: 20px; display: flex; flex-wrap: wrap;
+    gap: 8px; justify-content: center;
+  }
+  .cover .meta span {
+    font-size: .8rem; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 12px; background: rgba(255,255,255,.02);
+  }
+  .cover .formula {
+    font-family: 'Cambria Math', Georgia, serif;
+    color: #cdd8f5; margin-top: 18px; font-size: clamp(.9rem, 2.4vw, 1.15rem);
+    letter-spacing: .5px;
+  }
+
+  /* ============ BUTTONS ============ */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: inherit; font-size: .92rem; font-weight: 600;
+    color: #fff; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.14);
+    background: linear-gradient(180deg, var(--accent), var(--blue));
+    padding: 11px 20px; border-radius: 10px;
+    transition: transform .15s ease, box-shadow .2s ease, opacity .2s;
+    box-shadow: 0 6px 18px rgba(30,58,138,.4);
+    text-decoration: none; line-height: 1;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(79,124,255,.45); }
+  .btn:active { transform: translateY(0) scale(.98); }
+  .btn:focus-visible { outline: 2px solid #9db8ff; outline-offset: 2px; }
+  .btn.ghost {
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--line);
+    box-shadow: none; color: var(--text);
+  }
+  .btn.ghost:hover { background: rgba(255,255,255,.08); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn.sm { padding: 8px 14px; font-size: .82rem; }
+
+  /* ============ QR SLIDE ============ */
+  .qr-wrap { text-align: center; }
+  .qr-wrap h2 { font-size: clamp(1.1rem, 3vw, 1.6rem); letter-spacing: 1px; }
+  .qr-wrap .sub { color: var(--muted); margin-top: 6px; font-size: .9rem; }
+  .qr-box {
+    display: inline-flex; align-items: center; justify-content: center;
+    margin: 22px auto 12px;
+    padding: 14px; background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px var(--line), 0 12px 30px rgba(0,0,0,.4);
+  }
+  #qrCanvas { display: block; width: 220px; height: 220px; image-rendering: pixelated; }
+  .qr-url {
+    display: inline-block; margin-top: 6px;
+    font-size: .8rem; color: var(--muted); word-break: break-all;
+    border: 1px dashed var(--line); border-radius: 8px;
+    padding: 6px 12px; max-width: 100%;
+  }
+  .qr-actions { margin-top: 18px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* ============ MEMBER SLIDE ============ */
+  .member {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 26px; align-items: center;
+  }
+  .member-photo {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(160deg, #1c2c50, #101a33);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .member-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .member-photo .ph-fallback {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 6px;
+    color: var(--muted); font-size: .8rem; text-align: center; padding: 12px;
+  }
+  .member-photo.no-img .ph-fallback { display: flex; }
+  .member-photo .badge {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(11,18,32,.85);
+    border: 1px solid var(--line);
+    color: var(--accent);
+    font-size: .68rem; letter-spacing: 2px;
+    padding: 4px 10px; border-radius: 999px;
+  }
+  .member-info h3 {
+    font-size: clamp(1.2rem, 3.2vw, 1.8rem);
+    margin-bottom: 4px;
+  }
+  .member-info .role {
+    display: inline-block;
+    font-size: .72rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 16px;
+  }
+  .info-list { list-style: none; display: grid; gap: 8px; margin-bottom: 16px; }
+  .info-list li {
+    display: flex; gap: 10px; font-size: .9rem;
+    color: var(--muted); align-items: baseline;
+  }
+  .info-list li b { color: var(--text); font-weight: 600; min-width: 92px; }
+  .quote {
+    border-left: 3px solid var(--accent);
+    padding: 8px 14px; color: #cfdaf5;
+    font-style: italic; font-size: .9rem;
+    background: rgba(79,124,255,.06); border-radius: 0 8px 8px 0;
+  }
+
+  /* ============ CLOSING ============ */
+  .closing { text-align: center; padding: 40px 24px; }
+  .closing h2 { font-size: clamp(1.3rem, 3.8vw, 2rem); letter-spacing: 1px; }
+  .closing .sub { color: var(--muted); margin-top: 8px; }
+  .closing .summary {
+    margin: 22px auto; max-width: 560px;
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; background: var(--card-2);
+    display: grid; gap: 6px; font-size: .88rem; color: var(--muted); text-align: left;
+  }
+  .closing .summary b { color: var(--text); }
+
+  /* ============ NAV BAR ============ */
+  .navbar {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    background: rgba(11,18,32,.88);
+    border-top: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .navbar-inner {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    justify-content: space-between;
+  }
+  .nav-left, .nav-right { display: flex; gap: 8px; align-items: center; }
+  .dots { display: flex; gap: 6px; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,.18); cursor: pointer;
+    border: none; padding: 0;
+    transition: background .2s, transform .2s;
+  }
+  .dot:hover { background: rgba(255,255,255,.4); }
+  .dot.active { background: var(--accent); transform: scale(1.25); }
+
+  /* ============ TOAST ============ */
+  #toast {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%) translateY(20px);
+    background: rgba(15,24,46,.96);
+    border: 1px solid var(--line);
+    color: var(--text); font-size: .85rem;
+    padding: 10px 18px; border-radius: 10px;
+    box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s, transform .25s;
+    z-index: 100; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.ok { border-color: rgba(61,220,151,.5); }
+  #toast.err { border-color: rgba(255,107,107,.5); }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 780px) {
+    .member { grid-template-columns: 1fr; gap: 18px; }
+    .member-photo { max-width: 240px; margin: 0 auto; }
+    .info-list li b { min-width: 80px; }
+  }
+  @media (max-width: 520px) {
+    .panel { padding: 18px; }
+    .btn { padding: 10px 16px; font-size: .85rem; }
+    .dots { display: none; }
+    .navbar-inner { justify-content: space-between; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .slide-wrap { padding-top: 8px; padding-bottom: 66px; }
+    .cover { padding: 20px; }
+    .cover-icon { width: 48px; height: 48px; font-size: 22px; margin-bottom: 8px; }
+    #qrCanvas { width: 170px; height: 170px; }
+    .member-photo { max-height: 60vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      transition-duration: .001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-symbols" aria-hidden="true">
+  <span style="top:12%; left:8%;">∑</span>
+  <span style="top:70%; left:14%; animation-delay:2s;">x²</span>
+  <span style="top:20%; left:82%; animation-delay:4s;">f(x)</span>
+  <span style="top:78%; left:86%; animation-delay:1s;">÷</span>
+  <span style="top:45%; left:48%; animation-delay:3s; font-size:60px;">aₙ</span>
+  <span style="top:8%; left:55%; animation-delay:5s;">( )</span>
+</div>
+
+<div id="app">
+  <main class="slide-wrap" id="slideWrap">
+
+    <!-- SLIDE 1: COVER -->
+    <section class="slide active" id="slide-cover" aria-label="Cover">
+      <div class="panel cover">
+        <div class="cover-icon" aria-hidden="true">∑</div>
+        <div class="tag">Kelompok 7</div>
+        <h1>PEMBAGIAN POLINOMIAL<br>METODE HORNER</h1>
+        <p class="sub">Interactive Mathematics Presentation</p>
+        <div class="formula">P(x) = aₙxⁿ + aₙ₋₁xⁿ⁻¹ + … + a₁x + a₀</div>
+        <div class="meta">
+          <span id="metaClass">Kelas: —</span>
+          <span id="metaSchool">Sekolah: —</span>
+          <span id="metaYear">Tahun: —</span>
+        </div>
+        <div style="margin-top:26px;">
+          <button class="btn" id="btnStart">MULAI PRESENTASI →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: QR -->
+    <section class="slide" id="slide-qr" aria-label="QR Code">
+      <div class="panel qr-wrap">
+        <h2>SCAN TO JOIN OUR PRESENTATION</h2>
+        <p class="sub">Pindai QR Code untuk mengikuti kuis interaktif kelompok 7</p>
+        <div class="qr-box">
+          <canvas id="qrCanvas" width="220" height="220" role="img" aria-label="QR Code tujuan"></canvas>
+        </div>
+        <div class="qr-url" id="qrUrlLabel">URL belum diisi</div>
+        <div class="qr-actions">
+          <button class="btn ghost sm" id="btnCopyQr">Salin Tautan</button>
+          <button class="btn" id="btnQrNext">LANJUTKAN →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3-6: MEMBER (rendered by JS) -->
+    <section class="slide" id="slide-member-0" aria-label="Anggota 1"></section>
+    <section class="slide" id="slide-member-1" aria-label="Anggota 2"></section>
+    <section class="slide" id="slide-member-2" aria-label="Anggota 3"></section>
+    <section class="slide" id="slide-member-3" aria-label="Anggota 4"></section>
+
+    <!-- SLIDE 7: CLOSING -->
+    <section class="slide" id="slide-closing" aria-label="Penutup">
+      <div class="panel closing">
+        <h2>LET'S START THE PRESENTATION</h2>
+        <p class="sub">Pembagian Polinomial Metode Horner</p>
+        <div class="summary">
+          <div><b>Kelompok:</b> 7</div>
+          <div><b>Jumlah Anggota:</b> 4 orang</div>
+          <div><b>Topik:</b> Pembagian Polinomial — Metode Horner</div>
+          <div><b>Mata Pelajaran:</b> Matematika</div>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+          <button class="btn" id="btnToPresentation">LANJUT KE PRESENTASI UTAMA →</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- NAVBAR -->
+  <nav class="navbar" aria-label="Navigasi slide">
+    <div class="navbar-inner">
+      <div class="nav-left">
+        <button class="btn ghost sm" id="btnPrev" aria-label="Slide sebelumnya">← Sebelumnya</button>
+        <div class="dots" id="dots" role="tablist"></div>
+      </div>
+      <div class="nav-right">
+        <button class="btn ghost sm" id="btnFs" aria-label="Toggle fullscreen">⛶ Fullscreen</button>
+        <button class="btn sm" id="btnNext" aria-label="Slide berikutnya">Berikutnya →</button>
+      </div>
+    </div>
+  </nav>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =========================================================
+   KONFIGURASI — EDIT BAGIAN INI SAJA
+   ========================================================= */
+
+const CONFIG = {
+  // URL tujuan QR (kuis / materi). WAJIB diisi agar QR valid.
+  QUIZ_URL: "https://preview--formula-pembagian-horner.base44.app/proyeksi/6aad26051b8ece772d8c77a3",
+
+  // URL presentasi utama Base44
+  PRESENTATION_URL: "https://preview--formula-pembagian-horner.base44.app/proyeksi/6aad26051b8ece772d8c77a3",
+
+  // Buka presentasi di tab baru? true = tab baru, false = halaman ini
+  PRESENTATION_NEW_TAB: true,
+
+  // Info cover
+  CLASS: "XI IPA 7",
+  SCHOOL: "SMA Negeri 1 MOJOSARI",
+  YEAR: "Tahun Ajaran 2026 / 2027"
+};
+
+// Data 4 anggota — silakan ganti placeholder dengan data asli
+const MEMBERS = [
+  {
+    name: "Muhammad Raihan Dwi Cahyo",
+    nickname: "Hanz-R",
+    absen: "20",
+    kelas: CONFIG.CLASS,
+    role: "Anggota 1",
+    photo: "assets/images/member-1.jpg",
+    desc: "Magang",
+    quote: "Matematika bukan tentang angka, tapi tentang cara berpikir."
+  },
+  {
+    name: "Muhammad Ariefo Reza Permana",
+    nickname: "Reja",
+    absen: "17",
+    kelas: CONFIG.CLASS,
+    role: "Anggota 2",
+    photo: "assets/images/member-2.jpg",
+    desc: "magang",
+    quote: "Pahami konsepnya, maka rumus akan mengikuti."
+  },
+  {
+    name: "Muhammad Taufiq Assegaf",
+    nickname: "Topik",
+    absen: "21",
+    kelas: CONFIG.CLASS,
+    role: "Anggota 3",
+    photo: "assets/images/member-3.jpg",
+    desc: "Magang",
+    quote: "Latihan adalah jembatan antara tahu dan bisa."
+  },
+  {
+    name: "Muhammad Valencia M.",
+    nickname: "Ell Salvador",
+    absen: "22",
+    kelas: CONFIG.CLASS,
+    role: "Anggota 4",
+    photo: "assets/images/member-4.jpg",
+    desc: "Magang",
+    quote: "Kerja tim membuat segalanya lebih mudah."
+  }
+];
+
+/* =========================================================
+   SLIDE ENGINE
+   ========================================================= */
+const SLIDES = [
+  { id: "cover",     type: "cover" },
+  { id: "qr",        type: "qr" },
+  { id: "member-0",  type: "member", memberIndex: 0 },
+  { id: "member-1",  type: "member", memberIndex: 1 },
+  { id: "member-2",  type: "member", memberIndex: 2 },
+  { id: "member-3",  type: "member", memberIndex: 3 },
+  { id: "closing",   type: "closing" }
+];
+
+let currentIndex = 0;
+const dotsContainer = document.getElementById("dots");
+
+/* ---------- Render member slides sekali saja ---------- */
+function renderMemberSlide(index) {
+  const el = document.getElementById("slide-member-" + index);
+  if (!el || el.dataset.rendered === "1") return;
+  const m = MEMBERS[index];
+  const num = String(index + 1).padStart(2, "0");
+
+  el.innerHTML = `
+    <div class="panel member">
+      <div class="member-photo" id="photoWrap-${index}">
+        <span class="badge">MEMBER ${num}</span>
+        <img src="${m.photo}" alt="Foto ${m.name}" 
+             onerror="this.style.display='none'; this.parentElement.classList.add('no-img');">
+        <div class="ph-fallback">
+          <div style="font-size:28px;">👤</div>
+          <div>Foto belum tersedia</div>
+          <div style="font-size:.7rem; opacity:.7;">${m.photo}</div>
+        </div>
+      </div>
+      <div class="member-info">
+        <span class="role">${m.role}</span>
+        <h3>${m.name}</h3>
+        <ul class="info-list">
+          <li><b>Panggilan</b><span>${m.nickname}</span></li>
+          <li><b>No. Absen</b><span>${m.absen}</span></li>
+          <li><b>Kelas</b><span>${m.kelas}</span></li>
+          <li><b>Peran</b><span>${m.role}</span></li>
+          <li><b>Deskripsi</b><span>${m.desc}</span></li>
+        </ul>
+        <div class="quote">"${m.quote}"</div>
+      </div>
+    </div>
+  `;
+  el.dataset.rendered = "1";
+}
+
+/* ---------- Render semua member sekali di awal ---------- */
+MEMBERS.forEach((_, i) => renderMemberSlide(i));
+
+/* ---------- Dots ---------- */
+function buildDots() {
+  dotsContainer.innerHTML = "";
+  SLIDES.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "dot" + (i === currentIndex ? " active" : "");
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-label", "Ke slide " + (i + 1));
+    b.addEventListener("click", () => goToSlide(i));
+    dotsContainer.appendChild(b);
+  });
+}
+function updateDots() {
+  [...dotsContainer.children].forEach((d, i) => {
+    d.classList.toggle("active", i === currentIndex);
+  });
+}
+
+/* ---------- goToSlide ---------- */
+function goToSlide(index) {
+  if (index < 0) index = 0;
+  if (index >= SLIDES.length) index = SLIDES.length - 1;
+  if (index === currentIndex && document.querySelector(".slide.active")) return;
+
+  const slides = document.querySelectorAll(".slide");
+  slides.forEach(s => s.classList.remove("active"));
+
+  const targetId = "slide-" + SLIDES[index].id;
+  const target = document.getElementById(targetId);
+  if (target) {
+    // restart animation
+    target.style.animation = "none";
+    void target.offsetWidth;
+    target.style.animation = "";
+    target.classList.add("active");
+  }
+  currentIndex = index;
+  updateDots();
+  updateNavButtons();
+  // scroll ke atas agar slide terlihat penuh
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function nextSlide() { goToSlide(currentIndex + 1); }
+function previousSlide() { goToSlide(currentIndex - 1); }
+
+/* ---------- Nav buttons state ---------- */
+const btnPrev = document.getElementById("btnPrev");
+const btnNext = document.getElementById("btnNext");
+function updateNavButtons() {
+  btnPrev.disabled = currentIndex === 0;
+  btnNext.disabled = currentIndex === SLIDES.length - 1;
+}
+
+/* =========================================================
+   QR CODE — implementasi QR sederhana (byte mode, versi 3-6)
+   Tidak butuh library eksternal.
+   ========================================================= */
+
+/* --- Minimal QR encoder (mode byte, ECC level M) --- */
+const QR = (function () {
+  // Galois field untuk Reed-Solomon
+  const EXP = new Array(512), LOG = new Array(256);
+  (function initGF() {
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      EXP[i] = x; LOG[x] = i;
+      x <<= 1;
+      if (x & 0x100) x ^= 0x11d;
+    }
+    for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  })();
+
+  function gfMul(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return EXP[LOG[a] + LOG[b]];
+  }
+
+  function rsGenPoly(deg) {
+    let poly = [1];
+    for (let i = 0; i < deg; i++) {
+      const next = new Array(poly.length + 1).fill(0);
+      for (let j = 0; j < poly.length; j++) {
+        next[j] ^= poly[j];
+        next[j + 1] ^= gfMul(poly[j], EXP[i]);
+      }
+      poly = next;
+    }
+    return poly;
+  }
+
+  function rsEncode(data, ecLen) {
+    const gen = rsGenPoly(ecLen);
+    const res = new Array(ecLen).fill(0);
+    for (const d of data) {
+      const factor = d ^ res[0];
+      res.shift();
+      res.push(0);
+      if (factor !== 0) {
+        for (let i = 0; i < ecLen; i++) {
+          res[i] ^= gfMul(gen[i + 1], factor);
+        }
+      }
+    }
+    return res;
+  }
+
+  // Versi QR dengan kapasitas byte mode (ECC M)
+  const VERSIONS = {
+    3:  { size: 29, dataBytes: 44, ecBytes: 26, align: [6, 22] },
+    4:  { size: 33, dataBytes: 62, ecBytes: 36, align: [6, 26] },
+    5:  { size: 37, dataBytes: 84, ecBytes: 48, align: [6, 30] },
+    6:  { size: 41, dataBytes: 106, ecBytes: 64, align: [6, 34] }
+  };
+
+  function chooseVersion(byteLen) {
+    for (const v of [3, 4, 5, 6]) {
+      if (VERSIONS[v].dataBytes >= byteLen + 3) return v; // +3 overhead mode+len
+    }
+    return 6;
+  }
+
+  // Byte data dengan mode indicator 0100 + char count 8-bit
+  function buildDataBytes(text) {
+    const utf8 = unescape(encodeURIComponent(text));
+    const bytes = [];
+    for (let i = 0; i < utf8.length; i++) bytes.push(utf8.charCodeAt(i));
+    return bytes;
+  }
+
+  function buildBitStream(bytes, version) {
+    const cap = VERSIONS[version].dataBytes;
+    const bits = [];
+    const push = (val, len) => {
+      for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+    };
+    push(4, 4); // byte mode
+    push(bytes.length, 8); // 8-bit count
+    for (const b of bytes) push(b, 8);
+
+    // terminator
+    const maxBits = cap * 8;
+    const term = Math.min(4, maxBits - bits.length);
+    for (let i = 0; i < term; i++) bits.push(0);
+    // pad to byte
+    while (bits.length % 8 !== 0) bits.push(0);
+    // pad bytes
+    const padBytes = [0xEC, 0x11];
+    let pi = 0;
+    while (bits.length < maxBits) {
+      push(padBytes[pi % 2], 8);
+      pi++;
+    }
+    // convert to bytes
+    const out = [];
+    for (let i = 0; i < bits.length; i += 8) {
+      let b = 0;
+      for (let j = 0; j < 8; j++) b = (b << 1) | bits[i + j];
+      out.push(b);
+    }
+    return out;
+  }
+
+  function buildMatrix(version, dataBytes) {
+    const V = VERSIONS[version];
+    const size = V.size;
+    const matrix = Array.from({ length: size }, () => new Array(size).fill(null));
+    const reserved = Array.from({ length: size }, () => new Array(size).fill(false));
+
+    // Finder patterns
+    function placeFinder(r, c) {
+      for (let i = -1; i <= 7; i++) {
+        for (let j = -1; j <= 7; j++) {
+          const rr = r + i, cc = c + j;
+          if (rr < 0 || cc < 0 || rr >= size || cc >= size) continue;
+          reserved[rr][cc] = true;
+          if ((i >= 0 && i <= 6 && (j === 0 || j === 6)) ||
+              (j >= 0 && j <= 6 && (i === 0 || i === 6)) ||
+              (i >= 2 && i <= 4 && j >= 2 && j <= 4)) {
+            matrix[rr][cc] = 1;
+          } else {
+            matrix[rr][cc] = 0;
+          }
+        }
+      }
+    }
+    placeFinder(0, 0);
+    placeFinder(0, size - 7);
+    placeFinder(size - 7, 0);
+
+    // Separator & timing
+    for (let i = 0; i < size; i++) {
+      if (!reserved[6][i]) { matrix[6][i] = i % 2 === 0 ? 1 : 0; reserved[6][i] = true; }
+      if (!reserved[i][6]) { matrix[i][6] = i % 2 === 0 ? 1 : 0; reserved[i][6] = true; }
+    }
+
+    // Alignment patterns
+    const a = V.align;
+    for (const r of a) {
+      for (const c of a) {
+        if (reserved[r][c]) continue;
+        for (let i = -2; i <= 2; i++) {
+          for (let j = -2; j <= 2; j++) {
+            const rr = r + i, cc = c + j;
+            if (rr < 0 || cc < 0 || rr >= size || cc >= size) continue;
+            reserved[rr][cc] = true;
+            if (Math.abs(i) === 2 || Math.abs(j) === 2 || (i === 0 && j === 0)) {
+              matrix[rr][cc] = 1;
+            } else {
+              matrix[rr][cc] = 0;
+            }
+          }
+        }
+      }
+    }
+
+    // Dark module
+    matrix[size - 8][8] = 1;
+    reserved[size - 8][8] = true;
+
+    // Format info reservasi
+    for (let i = 0; i < 9; i++) {
+      reserved[8][i] = true;
+      reserved[i][8] = true;
+    }
+    for (let i = 0; i < 8; i++) {
+      reserved[8][size - 1 - i] = true;
+      reserved[size - 1 - i][8] = true;
+    }
+
+    // Versi info untuk versi >= 7 tidak diperlukan (3-6)
+
+    // Data placement (zigzag)
+    let bitIndex = 0;
+    const dataBits = [];
+    for (const b of dataBytes) {
+      for (let i = 7; i >= 0; i--) dataBits.push((b >> i) & 1);
+    }
+
+    let upward = true;
+    for (let col = size - 1; col > 0; col -= 2) {
+      if (col === 6) col = 5;
+      for (let row = 0; row < size; row++) {
+        const r = upward ? size - 1 - row : row;
+        for (let k = 0; k < 2; k++) {
+          const c = col - k;
+          if (reserved[r][c]) continue;
+          let bit;
+          if (bitIndex < dataBits.length) bit = dataBits[bitIndex++];
+          else bit = 0;
+          matrix[r][c] = bit;
+        }
+      }
+      upward = !upward;
+    }
+
+    // Mask 0: (r+c) mod 2 === 0
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (reserved[r][c]) continue;
+        if ((r + c) % 2 === 0) matrix[r][c] ^= 1;
+      }
+    }
+
+    // Format info (ECC M, mask 0) = 101010000010010
+    const fmt = [1,0,1,0,1,0,0,0,0,0,1,0,0,1,0];
+    // format placement
+    for (let i = 0; i < 6; i++) matrix[8][i] = fmt[i];
+    matrix[8][7] = fmt[6];
+    matrix[8][8] = fmt[7];
+    matrix[7][8] = fmt[8];
+    for (let i = 9; i < 15; i++) matrix[14 - i][8] = fmt[i];
+
+    for (let i = 0; i < 8; i++) matrix[8][size - 1 - i] = fmt[i];
+    for (let i = 8; i < 15; i++) matrix[size - 15 + i][8] = fmt[i];
+
+    return matrix;
+  }
+
+  function encode(text) {
+    const bytes = buildDataBytes(text);
+    const version = chooseVersion(bytes.length);
+    const V = VERSIONS[version];
+    const dataBytes = buildBitStream(bytes, version);
+    // split blocks? Untuk versi kecil 1 blok
+    const totalData = V.dataBytes;
+    const ecBytes = V.ecBytes;
+    // 1 blok
+    const ec = rsEncode(dataBytes, ecBytes);
+    const finalBytes = dataBytes.concat(ec);
+    return buildMatrix(version, finalBytes);
+  }
+
+  return { encode };
+})();
+
+/* ---------- Render QR ke canvas ---------- */
+function renderQR(canvas, text) {
+  const ctx = canvas.getContext("2d");
+  const size = canvas.width;
+  let matrix;
+  try {
+    matrix = QR.encode(text);
+  } catch (e) {
+    console.error(e);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#333";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("QR gagal dibuat", size / 2, size / 2);
+    return false;
+  }
+  const n = matrix.length;
+  const cell = Math.floor(size / n);
+  const offset = Math.floor((size - cell * n) / 2);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = "#0b1220";
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (matrix[r][c] === 1) {
+        ctx.fillRect(offset + c * cell, offset + r * cell, cell, cell);
+      }
+    }
+  }
+  return true;
+}
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+let toastTimer = null;
+function showToast(msg, type = "") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "show " + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ""; }, 2600);
+}
+
+/* =========================================================
+   FULLSCREEN
+   ========================================================= */
+const btnFs = document.getElementById("btnFs");
+function toggleFullscreen() {
+  const doc = document;
+  const el = doc.documentElement;
+  const isFs = doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement;
+  if (!isFs) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) {
+      req.call(el).catch(() => {
+        showToast("Fullscreen tidak diizinkan browser.", "err");
+      });
+    } else {
+      showToast("Browser tidak mendukung fullscreen.", "err");
+    }
+  } else {
+    const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+    if (exit) exit.call(doc);
+  }
+}
+function updateFsLabel() {
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+  btnFs.textContent = isFs ? "⛶ Keluar" : "⛶ Fullscreen";
+}
+document.addEventListener("fullscreenchange", updateFsLabel);
+document.addEventListener("webkitfullscreenchange", updateFsLabel);
+document.addEventListener("msfullscreenchange", updateFsLabel);
+btnFs.addEventListener("click", toggleFullscreen);
+
+/* =========================================================
+   OPEN PRESENTATION
+   ========================================================= */
+function openMainPresentation() {
+  const url = (CONFIG.PRESENTATION_URL || "").trim();
+  if (!url || !/^https?:\/\//i.test(url) || url.includes("GANTI_DENGAN")) {
+    showToast("URL presentasi utama belum diisi di CONFIG.", "err");
+    return;
+  }
+  if (CONFIG.PRESENTATION_NEW_TAB) {
+    window.open(url, "_blank", "noopener");
+  } else {
+    window.location.href = url;
+  }
+}
+
+/* =========================================================
+   QR COPY
+   ========================================================= */
+document.getElementById("btnCopyQr").addEventListener("click", async () => {
+  const url = (CONFIG.QUIZ_URL || "").trim();
+  if (!url || url.includes("GANTI_INI")) {
+    showToast("URL kuis belum diisi di CONFIG.", "err");
+    return;
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      showToast("Tautan berhasil disalin!", "ok");
+    } else {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("Tautan disalin.", "ok");
+    }
+  } catch (e) {
+    showToast("Gagal menyalin tautan.", "err");
+  }
+});
+
+/* =========================================================
+   EVENT LISTENERS
+   ========================================================= */
+document.getElementById("btnStart").addEventListener("click", () => nextSlide());
+document.getElementById("btnQrNext").addEventListener("click", () => nextSlide());
+document.getElementById("btnToPresentation").addEventListener("click", openMainPresentation);
+btnPrev.addEventListener("click", previousSlide);
+btnNext.addEventListener("click", nextSlide);
+
+document.addEventListener("keydown", (e) => {
+  // jangan ganggu input
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowRight" || e.key === " ") {
+    e.preventDefault();
+    nextSlide();
+  } else if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    previousSlide();
+  } else if (e.key === "f" || e.key === "F") {
+    toggleFullscreen();
+  }
+});
+
+/* Swipe */
+let touchStartX = 0, touchStartY = 0;
+document.addEventListener("touchstart", (e) => {
+  if (e.touches.length !== 1) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+document.addEventListener("touchend", (e) => {
+  if (e.changedTouches.length !== 1) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+    if (dx < 0) nextSlide();
+    else previousSlide();
+  }
+}, { passive: true });
+
+/* =========================================================
+   INIT
+   ========================================================= */
+function init() {
+  // meta cover
+  document.getElementById("metaClass").textContent = "Kelas: " + CONFIG.CLASS;
+  document.getElementById("metaSchool").textContent = "Sekolah: " + CONFIG.SCHOOL;
+  document.getElementById("metaYear").textContent = CONFIG.YEAR;
+
+  // QR
+  const canvas = document.getElementById("qrCanvas");
+  const label = document.getElementById("qrUrlLabel");
+  const qrUrl = (CONFIG.QUIZ_URL || "").trim();
+  if (!qrUrl || qrUrl.includes("GANTI_INI")) {
+    label.textContent = "⚠ URL kuis belum diisi di CONFIG.QUIZ_URL";
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#b91c1c";
+    ctx.font = "bold 14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("QR belum tersedia", canvas.width / 2, canvas.height / 2 - 8);
+    ctx.font = "12px sans-serif";
+    ctx.fillStyle = "#444";
+    ctx.fillText("Isi CONFIG.QUIZ_URL", canvas.width / 2, canvas.height / 2 + 14);
+  } else {
+    const ok = renderQR(canvas, qrUrl);
+    if (ok) label.textContent = qrUrl;
+  }
+
+  buildDots();
+  updateNavButtons();
+  updateFsLabel();
+}
+
+init();
+</script>
+</body>
+</html>
